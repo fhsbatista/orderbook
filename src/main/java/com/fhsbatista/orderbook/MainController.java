@@ -24,22 +24,29 @@ public class MainController {
         return DriverManager.getConnection(URL, USER, PASSWORD);
     }
 
+    private void createOrderInDatabase(CreateOrderInput input, UUID uuid) throws SQLException {
+        final String sql = "INSERT INTO orders (id, asset_code, type, quantity, price, owner) VALUES (?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = getConnection();
+             PreparedStatement statement = conn.prepareStatement(sql)) {
+
+            statement.setString(1, uuid.toString());
+            statement.setString(2, input.assetCode());
+            statement.setString(3, input.type());
+            statement.setDouble(4, input.quantity());
+            statement.setDouble(5, input.price());
+            statement.setString(6, input.owner());
+
+            statement.executeUpdate();
+        }
+    }
+
     @PostMapping("/orders")
     public ResponseEntity createOrder(CreateOrderInput input) {
         if (input.type().equals("sell")) {
-            final String sql = "INSERT INTO orders (id, asset_code, type, quantity, price, owner) VALUES (?, ?, ?, ?, ?, ?)";
-
-            try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
-
+            try {
                 final UUID uuid = uuidGenerator.generate();
-                statement.setString(1, uuid.toString());
-                statement.setString(2, input.assetCode());
-                statement.setString(3, input.type());
-                statement.setDouble(4, input.quantity());
-                statement.setDouble(5, input.price());
-                statement.setString(6, input.owner());
-
-                statement.executeUpdate();
+                createOrderInDatabase(input, uuid);
             } catch (SQLException e) {
                 e.printStackTrace();
             }
@@ -68,19 +75,8 @@ public class MainController {
 
                 }
 
-                final String insertSql = "INSERT INTO orders (id, asset_code, type, quantity, price, owner) VALUES (?, ?, ?, ?, ?, ?)";
-
-                try (PreparedStatement insertStatement = getConnection().prepareStatement(insertSql)) {
-                    final UUID uuid = uuidGenerator.generate();
-                    insertStatement.setString(1, uuid.toString());
-                    insertStatement.setString(2, input.assetCode());
-                    insertStatement.setString(3, input.type());
-                    insertStatement.setDouble(4, input.quantity());
-                    insertStatement.setDouble(5, input.price());
-                    insertStatement.setString(6, input.owner());
-
-                    insertStatement.executeUpdate();
-                }
+                final UUID uuid = uuidGenerator.generate();
+                createOrderInDatabase(input, uuid);
             } catch (SQLException e) {
                 e.printStackTrace();
             }
