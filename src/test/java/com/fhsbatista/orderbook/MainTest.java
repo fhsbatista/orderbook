@@ -1,5 +1,6 @@
 package com.fhsbatista.orderbook;
 
+import com.sun.tools.javac.Main;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -65,7 +67,8 @@ public class MainTest {
     public void mustCreateAssetBuyOrder() {
         final var uuid = UUID.randomUUID();
         when(uuidGenerator.generate()).thenReturn(uuid);
-        final var input = new CreateOrderInput("USDC",
+        final var input = new CreateOrderInput(
+                "USDC",
                 "buy",
                 30,
                 20.3,
@@ -88,5 +91,31 @@ public class MainTest {
         );
 
         assertEquals(List.of(expectedOrder), listResult.getBody());
+    }
+
+    @Test
+    public void skipBuyOrderIfExistsSellOrderWhichPriceIsEqual() {
+        controller = new MainController(new UUIDGeneratorUtilAdapter());
+        final var sellOrderInput = new CreateOrderInput(
+                "USDC",
+                "sell",
+                30,
+                20,
+                "John Doe"
+        );
+        final var buyOrderInput = new CreateOrderInput(
+                "USDC",
+                "buy",
+                30,
+                20,
+                "Jack Doe"
+        );
+        controller.createOrder(sellOrderInput);
+        controller.createOrder(buyOrderInput);
+
+        final var listResult = controller.listOrders("USDC");
+
+        assertNotNull(listResult.getBody());
+        assertEquals(0, listResult.getBody().size());
     }
 }

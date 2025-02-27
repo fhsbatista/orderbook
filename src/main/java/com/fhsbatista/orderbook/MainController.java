@@ -7,10 +7,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Stack;
-import java.util.UUID;
+import java.util.*;
 
 @RestController
 public class MainController {
@@ -22,30 +19,62 @@ public class MainController {
 
     @PostMapping("/orders")
     public ResponseEntity createOrder(CreateOrderInput input) {
-        final String sql = "INSERT INTO orders (id, asset_code, type, quantity, price, owner) VALUES (?, ?, ?, ?, ?, ?)";
+        if (input.type().equals("sell")) {
+            final String sql = "INSERT INTO orders (id, asset_code, type, quantity, price, owner) VALUES (?, ?, ?, ?, ?, ?)";
 
-        try {
-            final String url = "jdbc:mysql://localhost:3306/orders";
-            final String user = "root";
-            final String password = "root";
-            final Connection conn = DriverManager.getConnection(url, user, password);
+            try {
+                final String url = "jdbc:mysql://localhost:3306/orders";
+                final String user = "root";
+                final String password = "root";
+                final Connection conn = DriverManager.getConnection(url, user, password);
 
-            final PreparedStatement statement = conn.prepareStatement(sql);
+                final PreparedStatement statement = conn.prepareStatement(sql);
 
-            final UUID uuid = uuidGenerator.generate();
-            statement.setString(1, uuid.toString());
-            statement.setString(2, input.assetCode());
-            statement.setString(3, input.type());
-            statement.setDouble(4, input.quantity());
-            statement.setDouble(5, input.price());
-            statement.setString(6, input.owner());
+                final UUID uuid = uuidGenerator.generate();
+                statement.setString(1, uuid.toString());
+                statement.setString(2, input.assetCode());
+                statement.setString(3, input.type());
+                statement.setDouble(4, input.quantity());
+                statement.setDouble(5, input.price());
+                statement.setString(6, input.owner());
 
-            statement.executeUpdate();
+                statement.executeUpdate();
 
-            return ResponseEntity.ok().build();
-        } catch (SQLException e) {
-            e.printStackTrace();
+                return ResponseEntity.ok().build();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
         }
+
+        if (input.type().equals("buy")) {
+            final String sql = "SELECT * FROM orders WHERE asset_code = ? AND type = ?";
+
+            try {
+                final String url = "jdbc:mysql://localhost:3306/orders";
+                final String user = "root";
+                final String password = "root";
+                final Connection conn = DriverManager.getConnection(url, user, password);
+
+                final PreparedStatement statement = conn.prepareStatement(sql);
+                statement.setString(1, input.assetCode());
+                statement.setString(2, "sell");
+
+                final ResultSet result = statement.executeQuery();
+
+                while(result.next()) {
+                    if (result.getDouble("price") == input.price()) {
+                        final String deleteSql = "DELETE FROM orders WHERE id = ?";
+                        final PreparedStatement deleteStatement = conn.prepareStatement(deleteSql);
+                        deleteStatement.setString(1, result.getString("id"));
+                        deleteStatement.executeUpdate();
+                    }
+                }
+            } catch (SQLException e) {
+
+            }
+
+        }
+
 
         return ResponseEntity.ok().build();
     }
