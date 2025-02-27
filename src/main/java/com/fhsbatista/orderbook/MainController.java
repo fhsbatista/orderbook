@@ -11,10 +11,17 @@ import java.util.*;
 
 @RestController
 public class MainController {
+    private static final String URL = "jdbc:mysql://localhost:3306/orders";
+    private static final String USER = "root";
+    private static final String PASSWORD = "root";
     private final UUIDGenerator uuidGenerator;
 
     MainController(UUIDGenerator uuidGenerator) {
         this.uuidGenerator = uuidGenerator;
+    }
+
+    private Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(URL, USER, PASSWORD);
     }
 
     @PostMapping("/orders")
@@ -22,13 +29,7 @@ public class MainController {
         if (input.type().equals("sell")) {
             final String sql = "INSERT INTO orders (id, asset_code, type, quantity, price, owner) VALUES (?, ?, ?, ?, ?, ?)";
 
-            try {
-                final String url = "jdbc:mysql://localhost:3306/orders";
-                final String user = "root";
-                final String password = "root";
-                final Connection conn = DriverManager.getConnection(url, user, password);
-
-                final PreparedStatement statement = conn.prepareStatement(sql);
+            try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
 
                 final UUID uuid = uuidGenerator.generate();
                 statement.setString(1, uuid.toString());
@@ -39,8 +40,6 @@ public class MainController {
                 statement.setString(6, input.owner());
 
                 statement.executeUpdate();
-
-                return ResponseEntity.ok().build();
             } catch (SQLException e) {
                 e.printStackTrace();
             }
@@ -49,68 +48,81 @@ public class MainController {
         if (input.type().equals("buy")) {
             final String sql = "SELECT * FROM orders WHERE asset_code = ? AND type = ?";
 
-            try {
-                final String url = "jdbc:mysql://localhost:3306/orders";
-                final String user = "root";
-                final String password = "root";
-                final Connection conn = DriverManager.getConnection(url, user, password);
-
-                final PreparedStatement statement = conn.prepareStatement(sql);
+            final ResultSet result;
+            try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
                 statement.setString(1, input.assetCode());
                 statement.setString(2, "sell");
 
-                final ResultSet result = statement.executeQuery();
+                result = statement.executeQuery();
 
-                while(result.next()) {
+                while (result.next()) {
                     if (result.getDouble("price") == input.price()) {
                         final String deleteSql = "DELETE FROM orders WHERE id = ?";
-                        final PreparedStatement deleteStatement = conn.prepareStatement(deleteSql);
-                        deleteStatement.setString(1, result.getString("id"));
-                        deleteStatement.executeUpdate();
+                        try (PreparedStatement deleteStatement = getConnection().prepareStatement(deleteSql)) {
+                            deleteStatement.setString(1, result.getString("id"));
+                            deleteStatement.executeUpdate();
+                        }
+
+                        return ResponseEntity.ok().build();
                     }
                 }
             } catch (SQLException e) {
-
+                throw new RuntimeException(e);
             }
+
+
+            final String insertSql = "INSERT INTO orders (id, asset_code, type, quantity, price, owner) VALUES (?, ?, ?, ?, ?, ?)";
+
+            try (PreparedStatement insertStatement = getConnection().prepareStatement(insertSql)) {
+                final UUID uuid = uuidGenerator.generate();
+                insertStatement.setString(1, uuid.toString());
+                insertStatement.setString(2, input.assetCode());
+                insertStatement.setString(3, input.type());
+                insertStatement.setDouble(4, input.quantity());
+                insertStatement.setDouble(5, input.price());
+                insertStatement.setString(6, input.owner());
+
+                insertStatement.executeUpdate();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+
 
         }
 
-
         return ResponseEntity.ok().build();
     }
+
 
     @GetMapping("/assets/{assetCode}/orders")
     public ResponseEntity<List<Order>> listOrders(@PathVariable String assetCode) {
         final String sql = "SELECT * FROM orders WHERE asset_code = ?";
 
         try {
-            final String url = "jdbc:mysql://localhost:3306/orders";
-            final String user = "root";
-            final String password = "root";
+            final ResultSet result;
+            try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
+                statement.setString(1, assetCode);
 
-            final Connection conn = DriverManager.getConnection(url, user, password);
+                result = statement.executeQuery();
 
-            final PreparedStatement statement = conn.prepareStatement(sql);
-            statement.setString(1, assetCode);
+                List<Order> orders = new ArrayList<>();
 
-            final ResultSet result = statement.executeQuery();
+                while (result.next()) {
+                    orders.add(new Order(
+                            UUID.fromString(result.getString("id")),
+                            result.getString("asset_code"),
+                            result.getString("type"),
+                            result.getDouble("quantity"),
+                            result.getDouble("price"),
+                            result.getString("owner")
+                    ));
+                }
 
-            List<Order> orders = new ArrayList<>();
-
-            while (result.next()) {
-                orders.add(new Order(
-                        UUID.fromString(result.getString("id")),
-                        result.getString("asset_code"),
-                        result.getString("type"),
-                        result.getDouble("quantity"),
-                        result.getDouble("price"),
-                        result.getString("owner")
-                ));
+                return ResponseEntity.ok().body(orders);
             }
 
-            return ResponseEntity.ok().body(orders);
-
         } catch (SQLException e) {
+            e.printStackTrace();
         }
 
         return ResponseEntity.ok().build();
