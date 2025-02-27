@@ -31,7 +31,7 @@ public class MainTest {
     }
 
     @Test
-    public void mustCreateAssetSellOrders() {
+    public void mustCreateAssetSellOrder() {
         final var uuid = UUID.randomUUID();
         when(uuidGenerator.generate()).thenReturn(uuid);
         var input = new CreateOrderInput(
@@ -39,7 +39,7 @@ public class MainTest {
                 "sell",
                 1000,
                 5.50,
-                 "John Doe"
+                "John Doe"
         );
         var createResult = controller.createOrder(input);
 
@@ -48,6 +48,35 @@ public class MainTest {
         var listResult = controller.listOrders(input.assetCode());
 
         assertEquals(200, listResult.getStatusCode().value());
+
+        var expectedOrder = new Order(
+                uuid,
+                input.assetCode(),
+                input.type(),
+                input.quantity(),
+                input.price(),
+                input.owner()
+        );
+
+        assertEquals(List.of(expectedOrder), listResult.getBody());
+    }
+
+    @Test
+    public void mustCreateAssetBuyOrder() {
+        final var uuid = UUID.randomUUID();
+        when(uuidGenerator.generate()).thenReturn(uuid);
+        final var input = new CreateOrderInput("USDC",
+                "buy",
+                30,
+                20.3,
+                "John Doe"
+        );
+
+        var createResult = controller.createOrder(input);
+
+        assertEquals(200, createResult.getStatusCode().value());
+
+        var listResult = controller.listOrders(input.assetCode());
 
         var expectedOrder = new Order(
                 uuid,
