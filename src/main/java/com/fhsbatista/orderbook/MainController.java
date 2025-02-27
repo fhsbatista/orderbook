@@ -48,48 +48,43 @@ public class MainController {
         if (input.type().equals("buy")) {
             final String sql = "SELECT * FROM orders WHERE asset_code = ? AND type = ?";
 
-            final ResultSet result;
-            try (PreparedStatement statement = getConnection().prepareStatement(sql)) {
+            try (Connection conn = getConnection();
+                 PreparedStatement statement = conn.prepareStatement(sql)) {
                 statement.setString(1, input.assetCode());
                 statement.setString(2, "sell");
 
-                result = statement.executeQuery();
+                try (ResultSet result = statement.executeQuery()) {
+                    while (result.next()) {
+                        if (result.getDouble("price") == input.price()) {
+                            final String deleteSql = "DELETE FROM orders WHERE id = ?";
+                            try (PreparedStatement deleteStatement = getConnection().prepareStatement(deleteSql)) {
+                                deleteStatement.setString(1, result.getString("id"));
+                                deleteStatement.executeUpdate();
+                            }
 
-                while (result.next()) {
-                    if (result.getDouble("price") == input.price()) {
-                        final String deleteSql = "DELETE FROM orders WHERE id = ?";
-                        try (PreparedStatement deleteStatement = getConnection().prepareStatement(deleteSql)) {
-                            deleteStatement.setString(1, result.getString("id"));
-                            deleteStatement.executeUpdate();
+                            return ResponseEntity.ok().build();
                         }
-
-                        return ResponseEntity.ok().build();
                     }
+
                 }
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
 
+                final String insertSql = "INSERT INTO orders (id, asset_code, type, quantity, price, owner) VALUES (?, ?, ?, ?, ?, ?)";
 
-            final String insertSql = "INSERT INTO orders (id, asset_code, type, quantity, price, owner) VALUES (?, ?, ?, ?, ?, ?)";
+                try (PreparedStatement insertStatement = getConnection().prepareStatement(insertSql)) {
+                    final UUID uuid = uuidGenerator.generate();
+                    insertStatement.setString(1, uuid.toString());
+                    insertStatement.setString(2, input.assetCode());
+                    insertStatement.setString(3, input.type());
+                    insertStatement.setDouble(4, input.quantity());
+                    insertStatement.setDouble(5, input.price());
+                    insertStatement.setString(6, input.owner());
 
-            try (PreparedStatement insertStatement = getConnection().prepareStatement(insertSql)) {
-                final UUID uuid = uuidGenerator.generate();
-                insertStatement.setString(1, uuid.toString());
-                insertStatement.setString(2, input.assetCode());
-                insertStatement.setString(3, input.type());
-                insertStatement.setDouble(4, input.quantity());
-                insertStatement.setDouble(5, input.price());
-                insertStatement.setString(6, input.owner());
-
-                insertStatement.executeUpdate();
+                    insertStatement.executeUpdate();
+                }
             } catch (SQLException e) {
                 e.printStackTrace();
             }
-
-
         }
-
         return ResponseEntity.ok().build();
     }
 
